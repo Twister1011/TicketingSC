@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.9;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+
+contract Ticketing is ERC1155, Ownable, ERC1155Supply {
+    
+    // variables
+    address public immutable vendor;
+    address public reseller;
+    address public immutable goodCause;
+    uint public endTime;
+    
+    
+    constructor(address _vendor, address _goodCause)
+                ERC1155("https://ipfs.io/ipfs/QmQyDdwTt6wsXbNvNobFCyhQsMdxXqC4pRYUrSB4MvvR6L?filename=Concert.json") {
+        vendor = _vendor;
+        goodCause = _goodCause;
+    }
+
+    // The following functions are overrides required by Solidity.
+
+    function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
+        internal
+        override(ERC1155, ERC1155Supply)
+    {
+        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
+    }
+    
+    mapping(bytes32 => Event) public events;
+  bytes32[] public event_id_list;
+  mapping(address => bytes32[]) public participation;
+
+  struct Event { // attempt strict packaging
+    address vendor;
+    bytes32 event_id; //unique
+    bytes32 title;
+    uint index;
+    uint64 max_per_customer;
+    uint256 funds;
+    bool exists;
+    bool sale_active;
+    bool buyback_active;
+    bool per_customer_limit;
+    uint256 endTime;
+    uint64[] availableTicketsClass1;
+    uint64[] availableTicketsClass2;
+    uint64[] availableTicketsClass3;
+    uint128[] ticketPricesClass1;
+    uint128[] ticketPricesClass2;
+    uint128[] ticketPricesClass3;
+    address[] customers;
+    mapping(address => Customer) tickets;
+  }
+
+  struct Customer {
+    uint index;
+    address addr;
+    bool exists;
+    uint64 total_num_tickets;
+    uint128 total_paid;
+    uint64[] numTicketsClass1;
+    uint64[] numTicketsClass2;
+    uint64[] numTicketsClass3;
+  }
+
+  event EventCreated(bytes32 event_id);
+
+  modifier eventExists(bytes32 event_id){
+    require(events[event_id].exists, "Event with given ID not found.");
+    _;
+  }
+
+  modifier onlyHost(bytes32 event_id){
+    require(events[event_id].vendor == msg.sender, "Sender is not the owner of this event");
+    _;
+  }
+
+  modifier beforeDeadline(bytes32 event_id){
+      require(events[event_id].endTime < block.timestamp, "Event deadline has passed");
+      _;
+  }
+
+  modifier afterDeadline(bytes32 event_id){
+      require(events[event_id].endTime > block.timestamp, "Event deadline has not yet passed");
+      _;
+  } 
+
+    uint public numTicketsClass1;
+    uint public numTicketsClass2;
+    uint public numTicketsClass3;
+    uint public ticketPricesClass1;
+    uint public ticketPricesClass2;
+    uint public ticketPricesClass3;
+    string public title;
+    uint public maxTicketsPerCustomer;
+
+  function createEvent (uint _numTicketsClass1, uint _numTicketsClass2, 
+        uint _numTicketsClass3, uint _ticketPricesClass1, uint _ticketPricesClass2,
+        uint _ticketPricesClass3, string calldata _title, uint _durationDays, 
+        uint _maxTicketsPerCustomer) public {
+            numTicketsClass1 = _numTicketsClass1;
+            numTicketsClass2 = _numTicketsClass2;
+            numTicketsClass3 = _numTicketsClass3;
+            ticketPricesClass1 = _ticketPricesClass1;
+            ticketPricesClass2 = _ticketPricesClass2;
+            ticketPricesClass3 = _ticketPricesClass3;
+            title = _title;
+            endTime = block.timestamp + _durationDays * 1 days;
+            maxTicketsPerCustomer = _maxTicketsPerCustomer;
+
+            }
+
+    function setURI(string memory newuri) public onlyOwner {
+        _setURI(newuri);
+    }
+
+    function mintBest(address account, uint256 id1, uint256 amount, bytes memory data)
+        public
+        onlyOwner
+    {
+        _mint(account, id1, amount, data);
+        require(amount <= numTicketsClass1, "not enough seats in class 1");
+    }
+    
+     function mintMiddle(address account, uint256 id2, uint256 amount, bytes memory data)
+        public
+        onlyOwner
+    {
+        _mint(account, id2, amount, data);
+        require(amount <= numTicketsClass2, "not enough seats in class 2");
+    }
+    
+     function mintWorst(address account, uint256 id3, uint256 amount, bytes memory data)
+        public
+        onlyOwner
+    {
+        _mint(account, id3, amount, data);
+        require(amount <= numTicketsClass3, "not enough seats in class 3");
+    }
+
+    uint public requestedNumTickets1;
+    uint public requestedNumTickets2;
+    uint public requestedNumTickets3;
+
+    function buyTicket (uint _numTicketsClass1, uint _numTicketsClass2, uint _numTicketsClass3, 
+        uint _requestedNumTickets1, uint _requestedNumTickets2, uint _requestedNumTickets3) 
+        external payable {
+            _requestedNumTickets1 = requestedNumTickets1;
+            _requestedNumTickets2 = requestedNumTickets2;
+            _requestedNumTickets3 = requestedNumTickets3;
+            if (requestedNumTickets1 > 0) {require (requestedNumTickets1 < numTicketsClass1, 
+            "Not enough Tickets");}
+            
+            if (requestedNumTickets2 > 0) {require (requestedNumTickets2 < numTicketsClass2, 
+            "Not enough Tickets");}
+            
+            if (requestedNumTickets3 > 0) {require (requestedNumTickets3 < numTicketsClass3, 
+            "Not enough Tickets");}            
+            
+            if (requestedNumTickets1 > maxTicketsPerCustomer) {return "you cannot buy so many";}
+            if (requestedNumTickets2 > maxTicketsPerCustomer) {return "you cannot buy so many";}
+            if (requestedNumTickets3 > maxTicketsPerCustomer) {return "you cannot buy so many";}
+        }
+}
+
+
+
+    
+
+
