@@ -57,7 +57,7 @@ contract Ticketing is ERC1155, Ownable, ERC1155Supply {
         public payable {
 
             require (block.timestamp < endTime, "Sale already ended");
-            require (requestedNumTickets <= maxTicketsPerCustomer);
+            require (requestedNumTickets <= maxTicketsPerCustomer, "You cannot buy more tickets");
 
             buyer = msg.sender;
             requestedNumTickets = _requestedNumTickets;
