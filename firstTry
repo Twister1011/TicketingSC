@@ -9,32 +9,34 @@ contract Ticketing is ERC1155, Ownable, ERC1155Supply {
 
     address public vendor;
     address public goodCause;
-    uint [] public ticketPrice;
     string public title;
-    uint public immutable maxTicketsPerCustomer;
-    uint[] public numTickets;
-    uint[] public numOfClass;
-    uint[] public ticketClass;
+    uint public immutable numOfClasses;
     uint public endTime;
-
     
     constructor(address _vendor, address _goodCause, string memory _title, 
-        uint[] memory _ticketPrice,  uint _durationDays, uint _maxTicketsPerCustomer, 
-        uint[] memory _numTickets, uint[] memory _ticketClass, uint[] memory _numOfClass)
+        uint _durationDays, uint _numOfClasses)
                 ERC1155("https://bafybeigcdcsgioecw47pvbz2ehibuj75rxofwhhec3mfh5g2jz5nbt43ci.ipfs.dweb.link/{id].json") {
         
         vendor = _vendor;
         goodCause = _goodCause;
         title = _title;
-        numOfClass = _numOfClass;
-        ticketClass = _ticketClass;
-        numTickets = _numTickets;
-        ticketPrice = _ticketPrice;
-        maxTicketsPerCustomer = _maxTicketsPerCustomer;
+        numOfClasses = _numOfClasses;
         endTime = block.timestamp + _durationDays * 1 days;
+     }
 
+        uint [] public ticketPrice;
+        uint public maxTicketsPerCustomer;
+        uint[] public numTicketsClass;
+        uint[] public ticketClass;
+
+    function createTickets (uint[] memory numTicketsClass, uint[] memory ticketClass,
+        uint[] memory ticketPrice, uint _maxTicketsPerCustomer) public
+    {
+        numTicketsClass = new uint[](numOfClasses);
+        ticketClass = new uint[](numOfClasses);
+        ticketPrice = new uint[](numOfClasses);
+        maxTicketsPerCustomer = _maxTicketsPerCustomer;
     }
-
     // The following functions are overrides required by Solidity.
 
     function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
@@ -45,25 +47,35 @@ contract Ticketing is ERC1155, Ownable, ERC1155Supply {
     } 
 
     uint public requestedNumTickets;
-    uint public totalNumOfTickets;
     uint public payments;
     address public buyer;
     uint public availableTickets;
+    uint public amountReservedTickets;
+    uint public checkReservedTickets;
+    uint public payAmount;
 
     mapping(address => uint) public pendingPayments;   
-    mapping(address => uint) public purchasedTickets; 
+    mapping(address => uint) public reservedTickets;
+    //event reservedTickets (address indexed buyer, uint amount);
 
-    function buyTickets (uint _requestedNumTickets, uint[] memory _ticketClass) 
+    function reserveTickets (uint _requestedNumTickets, uint _ticketClass, uint _payAmount) 
         public payable {
 
             require (block.timestamp < endTime, "Sale already ended");
-            require (requestedNumTickets <= maxTicketsPerCustomer, "You cannot buy more tickets");
+            require (requestedNumTickets + reservedTickets[msg.sender] <= maxTicketsPerCustomer, 
+            "You cannot reserve more tickets");
 
-            buyer = msg.sender;
             requestedNumTickets = _requestedNumTickets;
-            ticketClass = _ticketClass;
+            payAmount = _payAmount;
 
-            pendingPayments[buyer] += msg.value;
+            if (requestedNumTickets != 0) {
+                reservedTickets[msg.sender] += requestedNumTickets;
+            }
+            
+            if (payAmount != 0) {
+                pendingPayments[msg.sender] += payAmount;
+            } 
+
     }
 
     function setURI(string memory newuri) public onlyOwner {
@@ -74,7 +86,7 @@ contract Ticketing is ERC1155, Ownable, ERC1155Supply {
     uint public amount;
     bytes public data;
 
-    function mintTickets(address _account, uint256[] calldata _ticketClass, uint256 _amount, 
+    function mintTickets(address account, uint256[] calldata _ticketClass, uint256 _amount, 
         bytes memory _data)
         public
     {
@@ -83,13 +95,13 @@ contract Ticketing is ERC1155, Ownable, ERC1155Supply {
         amount = _amount;
         data = _data;
 
-        require(pendingPayments[msg.sender] >= amount * ticketPrice[ticketClass]);
-        require(amount <= availableTickets[ticketClass]);
-        require(amount + purchasedTickets[msg.sender] <= maxTicketsPerCustomer);
+        //require(pendingPayments[msg.sender] >= amount * ticketPrice[ticketClass]);
+        //require(amount <= availableTickets[ticketClass]);
+        //require(amount + purchasedTickets[msg.sender] <= maxTicketsPerCustomer);
 
-        pendingPayments[msg.sender] = pendingPayments[msg.sender] - (amount*ticketPrice[ticketClass]);
-        purchasedTickets[msg.sender] = purchasedTickets[msg.sender] + amount;
-        _mint(account, ticketClass, amount, data);
+       // pendingPayments[msg.sender] = pendingPayments[msg.sender] - (amount*ticketPrice[ticketClass]);
+        //purchasedTickets[msg.sender] = purchasedTickets[msg.sender] + amount;
+        //_mint(account, ticketClass, amount, data);
     }
 }
 
