@@ -24,11 +24,16 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
     uint public endTime;
     uint payment;
     uint public price;
+    uint public totalDonations;
+    uint public requestedNumberOfTickets;
 
 
     mapping (address => uint) public ticketsOfCustomer;
     mapping (address => uint) public paidTicketsOfCustomer;
     mapping (uint => uint) public tokenIdForPrice;
+    mapping (address => uint) internal pendingPayment;
+
+    event ticketSold(address _buyer);
 
     // Create the Event
 
@@ -46,38 +51,30 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
     }
 
     function _baseURI() internal pure override returns (string memory) {
-        return "https://bafybeiazr2j4rfmlle6cr7c6l6ntti6mo764ncmns3kzgtcah4ayrwlorq";
+        return "https://bafybeiajptvyr3nnvpjvnuw6qe5so7ifjvbcfdsvhfkfuevex7caqv5wiu{id}.json";
     }
 
-    // Customers can get tickets through this function
+    // Customer has to mint an pay ticket within this function
 
-    function getTicket(bool _requestTicket) public payable {
+     function getOneTicket(address to) public payable {
 
-        requestTicket = _requestTicket;
-        payment = msg.value;
-
+        require(msg.value == ticketPrice, "Send the correct amount of ETH");
+        require(availableTickets > 0, "Not enough tickets available");
+        require(ticketsOfCustomer[msg.sender] <= maxTicketsPerCustomer, "You already bought the maximum amount of tickets");
         require(block.timestamp < endTime, "Sale already ended");
-        require(msg.value >= ticketPrice, "Send more ETH");
-        require(availableTickets > 0, "No more tickets available");
-        require(paidTicketsOfCustomer[msg.sender] < maxTicketsPerCustomer, "You already own 4 Tickets");
-
-        ticketsOfCustomer[msg.sender] += 1;
-        payable(vendor).transfer(payment);
-    }
-
-    // After getting the tickets, customer has to mint the ticket
-
-     function safeMint(address to) public {
-
-        require(ticketsOfCustomer[msg.sender] > 0, "get ticket first");
 
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(to, tokenId);
 
-        ticketsOfCustomer[msg.sender] -= 1;
-        paidTicketsOfCustomer[msg.sender] += 1;
+        //change internal variables
+        ticketsOfCustomer[msg.sender] += 1;
         availableTickets -= 1;
+
+        //allow payment to vendor
+        payable(vendor).transfer(msg.value);
+
+        emit ticketSold(msg.sender);
     }
 
     // Resell functions:
@@ -124,7 +121,9 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
 
         emit ticketResold(reseller, msg.sender, 90 * msg.value / 100);
         emit donatedToGoodCause(msg.sender, goodCause, 10 * msg.value / 100);
-    }
+
+        totalDonations += (10 * msg.value / 100);
+    }   
 
 }
 
