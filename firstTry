@@ -1,110 +1,132 @@
+
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.2;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
-contract Ticketing is ERC1155, Ownable, ERC1155Supply {
+contract Ticketing is ERC721, ERC721Burnable, Ownable {
+    using Counters for Counters.Counter;
 
-    address public vendor;
-    address public goodCause;
+    Counters.Counter private _tokenIdCounter;
+
+    address public immutable vendor;
+    address public immutable goodCause;
+    address public reseller;
+    address public buyer;
+    uint public availableTickets;
+    uint public ticketPrice;
+    uint public maxTicketsPerCustomer;
     string public title;
-    uint public immutable numOfClasses;
+    bool public requestTicket;
     uint public endTime;
-    
-    constructor(address _vendor, address _goodCause, string memory _title, 
-        uint _durationDays, uint _numOfClasses)
-                ERC1155("https://bafybeigcdcsgioecw47pvbz2ehibuj75rxofwhhec3mfh5g2jz5nbt43ci.ipfs.dweb.link/{id].json") {
-        
+    uint payment;
+    uint public price;
+
+
+    mapping (address => uint) public ticketsOfCustomer;
+    mapping (address => uint) public paidTicketsOfCustomer;
+    mapping (uint => uint) public tokenIdForPrice;
+
+    // Create the Event
+
+    constructor(address _vendor, address _goodCause, uint _durationDays, string memory _title, uint _availableTickets,
+        uint _ticketPrice, uint _maxTicketsPerCustomer) ERC721("Ticketing", "TKT") {
+
         vendor = _vendor;
         goodCause = _goodCause;
         title = _title;
-        numOfClasses = _numOfClasses;
-        endTime = block.timestamp + _durationDays * 1 days;
-     }
-
-        uint [] public ticketPrice;
-        uint public maxTicketsPerCustomer;
-        uint[] public numTicketsClass;
-        uint[] public ticketClass;
-
-    function createTickets (uint[] memory numTicketsClass, uint[] memory ticketClass,
-        uint[] memory ticketPrice, uint _maxTicketsPerCustomer) public
-    {
-        numTicketsClass = new uint[](numOfClasses);
-        ticketClass = new uint[](numOfClasses);
-        ticketPrice = new uint[](numOfClasses);
+        availableTickets = _availableTickets;
+        ticketPrice = _ticketPrice;
         maxTicketsPerCustomer = _maxTicketsPerCustomer;
-    }
-    // The following functions are overrides required by Solidity.
-
-    function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
-        internal
-        override(ERC1155, ERC1155Supply)
-    {
-        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
-    } 
-
-    uint public requestedNumTickets;
-    uint public payments;
-    address public buyer;
-    uint public availableTickets;
-    uint public amountReservedTickets;
-    uint public checkReservedTickets;
-    uint public payAmount;
-
-    mapping(address => uint) public pendingPayments;   
-    mapping(address => uint) public reservedTickets;
-    //event reservedTickets (address indexed buyer, uint amount);
-
-    function reserveTickets (uint _requestedNumTickets, uint _ticketClass, uint _payAmount) 
-        public payable {
-
-            require (block.timestamp < endTime, "Sale already ended");
-            require (requestedNumTickets + reservedTickets[msg.sender] <= maxTicketsPerCustomer, 
-            "You cannot reserve more tickets");
-
-            requestedNumTickets = _requestedNumTickets;
-            payAmount = _payAmount;
-
-            if (requestedNumTickets != 0) {
-                reservedTickets[msg.sender] += requestedNumTickets;
-            }
-            
-            if (payAmount != 0) {
-                pendingPayments[msg.sender] += payAmount;
-            } 
+        endTime = block.timestamp + _durationDays * 1 days;
 
     }
 
-    function setURI(string memory newuri) public onlyOwner {
-        _setURI(newuri);
+    function _baseURI() internal pure override returns (string memory) {
+        return "https://bafybeiazr2j4rfmlle6cr7c6l6ntti6mo764ncmns3kzgtcah4ayrwlorq";
     }
 
-    address public account;
-    uint public amount;
-    bytes public data;
+    // Customers can get tickets through this function
 
-    function mintTickets(address account, uint256[] calldata _ticketClass, uint256 _amount, 
-        bytes memory _data)
-        public
-    {
-        account = msg.sender;
-        ticketClass = _ticketClass;
-        amount = _amount;
-        data = _data;
+    function getTicket(bool _requestTicket) public payable {
 
-        //require(pendingPayments[msg.sender] >= amount * ticketPrice[ticketClass]);
-        //require(amount <= availableTickets[ticketClass]);
-        //require(amount + purchasedTickets[msg.sender] <= maxTicketsPerCustomer);
+        requestTicket = _requestTicket;
+        payment = msg.value;
 
-       // pendingPayments[msg.sender] = pendingPayments[msg.sender] - (amount*ticketPrice[ticketClass]);
-        //purchasedTickets[msg.sender] = purchasedTickets[msg.sender] + amount;
-        //_mint(account, ticketClass, amount, data);
+        require(block.timestamp < endTime, "Sale already ended");
+        require(msg.value >= ticketPrice, "Send more ETH");
+        require(availableTickets > 0, "No more tickets available");
+        require(paidTicketsOfCustomer[msg.sender] < maxTicketsPerCustomer, "You already own 4 Tickets");
+
+        ticketsOfCustomer[msg.sender] += 1;
+        payable(vendor).transfer(payment);
     }
+
+    // After getting the tickets, customer has to mint the ticket
+
+     function safeMint(address to) public {
+
+        require(ticketsOfCustomer[msg.sender] > 0, "get ticket first");
+
+        uint256 tokenId = _tokenIdCounter.current();
+        _tokenIdCounter.increment();
+        _safeMint(to, tokenId);
+
+        ticketsOfCustomer[msg.sender] -= 1;
+        paidTicketsOfCustomer[msg.sender] += 1;
+        availableTickets -= 1;
+    }
+
+    // Resell functions:
+
+    event ticketResold (address _reseller, address _buyer, uint _price);
+    event donatedToGoodCause (address _buyer, address _goodCause, uint _amount);
+    event listedForSale (address _reseller, uint _price, uint _tokenId);
+    event notForSaleAnymore (address _reseller, uint _tokenId);
+
+    // First a previous buyer has to allow the ticket to be bought and set the price
+
+    function allowBuy(uint _tokenId, uint _price) external {
+
+        require(msg.sender == ownerOf(_tokenId), "You are not owner of this exact ticket");
+        require(_price > 0, "Price cannot be 0");
+        tokenIdForPrice[_tokenId] = _price;
+
+        emit listedForSale(msg.sender, _price, _tokenId);
+    }
+
+    // Buyer can decide that the ticket can now not be bought anymore
+
+    function disallowBuy(uint _tokenId) external {
+
+        require(msg.sender == ownerOf(_tokenId), "You are not owner of this exact ticket");
+        tokenIdForPrice[_tokenId] = 0;
+
+        emit notForSaleAnymore(msg.sender, _tokenId);
+    }
+
+    // Create a buy function for a buyer that wants a listed ticket
+
+    function buy(uint _tokenId) external payable {
+
+        price = tokenIdForPrice[_tokenId];
+        require(price > 0, "This ticket is not for sale");
+        require(msg.value == price, "Please send correct price");
+
+        reseller = ownerOf(_tokenId);
+        _transfer(reseller, msg.sender, _tokenId);
+        tokenIdForPrice[_tokenId] = 0; // Ticket is not for sale anymore
+        payable(reseller).transfer(90 * msg.value / 100);
+        payable(goodCause).transfer(10 * msg.value / 100);
+
+        emit ticketResold(reseller, msg.sender, 90 * msg.value / 100);
+        emit donatedToGoodCause(msg.sender, goodCause, 10 * msg.value / 100);
+    }
+
 }
-
 
     
 
