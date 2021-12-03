@@ -1,16 +1,21 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.2;
+
+// All imports taken from OpenZeppelin Wizard (see "https://wizard.openzeppelin.com/#erc721")
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
+// As mentioned in the presentation there were differnt ERC to chose from. In the end we decided to go
+// with the ERC-721 to allow for some identification of the tickets. The ERC-1155 would offer more
+// flexibility for ticket creation and for ticket transfer, so it might be the more reasonable choice.
+
 contract Ticketing is ERC721, ERC721Burnable, Ownable {
     using Counters for Counters.Counter;
 
-    Counters.Counter private _tokenIdCounter;
+    Counters.Counter private _tokenIdCounter; // taken from the OppenZeppelin Wizard
 
     address public immutable vendor;
     address public immutable goodCause;
@@ -29,7 +34,6 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
 
 
     mapping (address => uint) public ticketsOfCustomer;
-    mapping (address => uint) public paidTicketsOfCustomer;
     mapping (uint => uint) public tokenIdForPrice;
     mapping (address => uint) internal pendingPayment;
 
@@ -50,6 +54,8 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
 
     }
 
+    // function _baseURI was given by the OpenZeppelin Wizard
+
     function _baseURI() internal pure override returns (string memory) {
         return "https://bafybeiajptvyr3nnvpjvnuw6qe5so7ifjvbcfdsvhfkfuevex7caqv5wiu{id}.json";
     }
@@ -63,9 +69,9 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
         require(ticketsOfCustomer[msg.sender] < maxTicketsPerCustomer, "You already bought the maximum amount of tickets");
         require(block.timestamp < endTime, "Sale already ended");
 
-        uint256 tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
-        _safeMint(to, tokenId);
+        uint256 tokenId = _tokenIdCounter.current();    // taken from OpenZeppelin Wizard
+        _tokenIdCounter.increment();                    // taken from OpenZeppelin Wizard
+        _safeMint(to, tokenId);                         // taken from OpenZeppelin Wizard
 
         //change internal variables
         ticketsOfCustomer[msg.sender] += 1;
@@ -76,6 +82,10 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
 
         emit ticketSold(msg.sender);
     }
+
+    // The functions for reselling Tickets was taken from "https://stackoverflow.com/questions/67317392/how-to-transfer-a-nft-from-one-account-to-another-using-erc721"
+    // We altered the last function so that 10% of the resale price will be directly transferred 
+    // to the wallet of the GoodCause specified.
 
     // Resell functions:
 
@@ -95,7 +105,7 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
         emit listedForSale(msg.sender, _price, _tokenId);
     }
 
-    // Buyer can decide that the ticket can now not be bought anymore
+    // Buyer can decide that the ticket can now NOT be bought anymore
 
     function disallowBuy(uint _tokenId) external {
 
@@ -105,7 +115,7 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
         emit notForSaleAnymore(msg.sender, _tokenId);
     }
 
-    // Create a buy function for a buyer that wants a listed ticket
+    // Create a buy function for a buyer that wants to buy a listed ticket
 
     function buy(uint _tokenId) external payable {
 
@@ -126,6 +136,5 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
     }   
 
 }
-    
 
 
