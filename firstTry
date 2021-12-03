@@ -60,7 +60,7 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
 
         require(msg.value == ticketPrice, "Send the correct amount of ETH");
         require(availableTickets > 0, "Not enough tickets available");
-        require(ticketsOfCustomer[msg.sender] <= maxTicketsPerCustomer, "You already bought the maximum amount of tickets");
+        require(ticketsOfCustomer[msg.sender] < maxTicketsPerCustomer, "You already bought the maximum amount of tickets");
         require(block.timestamp < endTime, "Sale already ended");
 
         uint256 tokenId = _tokenIdCounter.current();
@@ -126,7 +126,6 @@ contract Ticketing is ERC721, ERC721Burnable, Ownable {
     }   
 
 }
-
     
 
 
